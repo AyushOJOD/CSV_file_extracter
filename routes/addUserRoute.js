@@ -9,34 +9,32 @@ const upload = multer({ dest: "uploads/" });
 const router = express.Router();
 
 router.post("/lists/:listId/users", upload.single("file"), async (req, res) => {
-  const results = [];
+  const users = [];
   const errors = [];
   const listId = req.params.listId;
 
   fs.createReadStream(req.file.path)
     .pipe(csv())
     .on("data", (data) => {
-      results.push(data);
+      if (!data.name || !data.email || !data.city) {
+        errors.push({
+          row: users.length + 1,
+          error: "Missing required fields",
+        });
+      } else {
+        users.push({
+          name: data.name,
+          email: data.email,
+          city: data.city,
+          list: listId,
+        });
+      }
     })
     .on("end", async () => {
-      for (let i = 0; i < results.length; i++) {
-        try {
-          if (!results[i].name || !results[i].email || !results[i].city) {
-            throw new Error("Missing required fields");
-          }
-
-          const user = new User({
-            name: results[i].name,
-            email: results[i].email,
-            city: results[i].city,
-            list: listId,
-          });
-
-          c;
-          await user.save();
-        } catch (error) {
-          errors.push({ row: i + 1, error: error.message });
-        }
+      try {
+        await User.insertMany(users);
+      } catch (error) {
+        errors.push({ row: users.length, error: error.message });
       }
 
       fs.unlinkSync(req.file.path);
@@ -47,7 +45,7 @@ router.post("/lists/:listId/users", upload.single("file"), async (req, res) => {
         );
         res.status(400).send({ errors });
       } else {
-        res.status(201).send(results);
+        res.status(201).send(users);
       }
     });
 });
